@@ -528,6 +528,21 @@ var solanaWeb3=function(exports){"use strict";function getDefaultExportFromCjs(x
     pollTimer: null
   };
 
+  var storage = window.storage || {
+    set: function(key, value){
+      localStorage.setItem(key, value);
+      return Promise.resolve();
+    },
+    list: function(prefix){
+      var keys = [];
+      for (var i = 0; i < localStorage.length; i++){
+        var key = localStorage.key(i);
+        if (key && key.indexOf(prefix) === 0) keys.push(key);
+      }
+      return Promise.resolve({keys: keys});
+    }
+  };
+
   function ns(code){ return "flipws:" + code + ":p:"; }
 
   function randomCode(){
@@ -586,7 +601,7 @@ var solanaWeb3=function(exports){"use strict";function getDefaultExportFromCjs(x
   /* ---------------- participants ---------------- */
 
   function fetchParticipants(code){
-    return window.storage.list(ns(code), true).then(function(res){
+    return storage.list(ns(code), true).then(function(res){
       var keys = (res && res.keys) || [];
       var prefix = ns(code);
       return keys.map(function(k){ return k.slice(prefix.length); }).filter(Boolean);
@@ -676,13 +691,15 @@ var solanaWeb3=function(exports){"use strict";function getDefaultExportFromCjs(x
       var pubkey = resp.publicKey.toString();
       state.pubkey = pubkey;
       state.provider = provider;
-      return window.storage.set(ns(state.code) + pubkey, shortAddr(pubkey), true);
+      return storage.set(ns(state.code) + pubkey, shortAddr(pubkey), true);
     }).then(function(){
       el.myAddrPill.textContent = "You \u00b7 " + shortAddr(state.pubkey);
       show(el.screenFlip);
       pollParticipants(state.code, renderFlipScreen);
     }).catch(function(e){
-      el.connectHint.textContent = "Connection declined \u2014 try again";
+      el.connectHint.textContent = (e && e.code === 4001)
+        ? "Connection declined \u2014 try again"
+        : "Could not finish connecting \u2014 refresh and try again";
       el.connectHint.className = "hint err";
     }).finally(function(){
       el.btnConnectWallet.removeAttribute("disabled");
